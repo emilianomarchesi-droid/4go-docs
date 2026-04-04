@@ -437,3 +437,57 @@ Le email classificate vengono spostate automaticamente via IMAP in:
 
 *Ultimo aggiornamento: 2026-04-04*
 
+
+---
+
+## SESSIONE 2026-04-04 sera — PRV completo: Gamma PDF, Telegram auto, voci extra, pacchetto da PRV
+
+### Gamma brochure PRV (gamma-brochure/route.ts)
+- **Haiku pre-processa** il testo grezzo PDF → markdown strutturato con sezione `##` per ogni tappa/giorno
+- **textMode: preserve** — Gamma rispetta la struttura Haiku senza riscrivere
+- **numCards dinamico** — conta le sezioni `##` del markdown (target: 30-32 per PDF complessi)
+- Passa `clientName` e `totalAmount` → inclusi nella brochure
+- `exportAs:'pdf'` rimosso (causava `status:pending` infinito)
+- Polling client-side max 150s via `/api/ai/gamma-poll`
+- Logo finale: istruzione doppia (inputText + additionalInstructions) per sfondo nero + logo centrato 30%
+
+### PreventivoDocument — testo estratto in DB
+- PDF importato → pdf.js estrae testo client-side → salvato in `PreventivoDocument.extractedText` (solo DB, no Blob)
+- Gamma usa il testo estratto come `richContent` (max 25k chars)
+- Al salvataggio PRV (nuovo o esistente): testo automaticamente salvato senza UI separata
+
+### Conversione 4GO → TelegramDocument automatico
+- Alla conversione PRV → 4GO: se `gammaExportUrl` disponibile → scarica PDF Gamma → crea `TelegramDocument` associato al `bookingCode`
+- Bot ha subito il contenuto disponibile
+
+### Bottone "Genera Pacchetto Viaggi" (solo CONVERTED)
+- Route `/api/admin/prv-to-package`
+- Haiku estrae itinerario da testo PDF PRV (omette prezzi/costi/date specifiche)
+- Crea `Package` DRAFT in Pacchetti Viaggi
+
+### Voci extra post-PAID
+- Selezione metodo pagamento per ogni voce: Stripe / PayPal / Entrambi
+- Link Stripe include `extraItemIds` nei metadata → webhook spunta voci automaticamente
+- PayPal → segna pagato manuale operatore
+
+### Cron prv-autoarchive
+- URL: `/api/cron/prv-autoarchive?secret=4go2026`
+- Archivia PRV con `returnDate` > 30 giorni fa e status != CONVERTED
+- Elimina `PreventivoDocument` records (solo DB)
+- Da aggiungere su cron-job.org: `0 9 * * *`
+
+### UX preventivi
+- Barra ricerca sticky in cima alla lista
+- "Rigenera Gamma" bottone viola nel form (solo in modifica)
+- Un solo bottone Gamma viola nella card quando non in modifica
+- "Totale voci" mostrato sotto "Totale preventivo indicativo" nel form
+- La voce "rif. PDF" non entra nel calcolo "Totale voci"
+
+### QR Telegram nelle email
+- Colore rosso `#D10000` su sfondo bianco
+- Punta a `fourgo.it/bot?code=4GO-...` (pagina di atterraggio)
+- Pagina `/bot`: deep link `tg://`, App Store/Play Store, codice in grande
+
+---
+
+*Ultimo aggiornamento: 2026-04-04 sera*
