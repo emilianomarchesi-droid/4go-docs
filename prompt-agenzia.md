@@ -491,3 +491,40 @@ Le email classificate vengono spostate automaticamente via IMAP in:
 ---
 
 *Ultimo aggiornamento: 2026-04-04 sera*
+
+---
+
+## SESSIONE 2026-04-06 — PRV UX, Gamma fix, saldo pagamenti
+
+### Fix UX Preventivi
+- Barra ricerca: spostata in cima alla lista (era in fondo), rimossa duplicata
+- Bottone Gamma card: rimosso grigio duplicato — rimane solo viola
+- In modifica: bottone diventa "Rigenera Gamma" viola
+- Totale voci: mostrato sotto "Totale preventivo indicativo", somma tutti gli items escluso rif.PDF, aggiornato live
+- numCards Gamma PRV: fisso 32
+
+### Gamma PRV — estrazione dati reali
+- Haiku istruito a estrarre dati ESATTI dal testo (orari voli, nomi hotel, stelle, treni) — può migliorare la presentazione ma NON omettere nulla
+- 30 sezioni esplicite nel prompt Haiku per garantire copertura completa
+- textMode: condense→preserve (condense causava perdita dati)
+- Testo PDF estratto client-side (pdf.js) salvato in PreventivoDocument al salvataggio PRV
+
+### Gamma — nome documento
+- Tutte e 3 le route (gamma-brochure PRV, generate-gamma-auto PKG, package multi-hotel) passano `name` a Gamma
+- Formato: `PRV-2026-NNOVG · 06/04 14:32` — codice + data + ora, unico ad ogni rigenerazione
+- Cercabile in Gamma.app
+
+### Pannello POST-PAID — saldo pagamenti
+- Riepilogo: Extra aggiunti / Extra pagati (verde) / Saldo finale da incassare (rosso)
+- Saldo si aggiorna ad ogni azione (aggiungi voce, segna pagato, rimuovi)
+- Bottone ✕ per rimuovere ogni voce extra
+- Bottone "Genera link saldo (€X)" sul totale residuo esatto
+- Formula: Totale pacchetto - Acconto pagato + Extra aggiunti - Extra pagati = Saldo finale
+
+### Gamma folder
+- API Gamma non supporta creazione folder via API — solo lista (GET /folders)
+- Soluzione adottata: nome documento con codice PRV/PKG + data+ora
+
+---
+
+*Ultimo aggiornamento: 2026-04-06*
