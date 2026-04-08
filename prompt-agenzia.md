@@ -437,3 +437,343 @@ Le email classificate vengono spostate automaticamente via IMAP in:
 
 *Ultimo aggiornamento: 2026-04-04*
 
+
+---
+
+## SESSIONE 2026-04-04 sera — PRV completo: Gamma PDF, Telegram auto, voci extra, pacchetto da PRV
+
+### Gamma brochure PRV (gamma-brochure/route.ts)
+- **Haiku pre-processa** il testo grezzo PDF → markdown strutturato con sezione `##` per ogni tappa/giorno
+- **textMode: preserve** — Gamma rispetta la struttura Haiku senza riscrivere
+- **numCards dinamico** — conta le sezioni `##` del markdown (target: 30-32 per PDF complessi)
+- Passa `clientName` e `totalAmount` → inclusi nella brochure
+- `exportAs:'pdf'` rimosso (causava `status:pending` infinito)
+- Polling client-side max 150s via `/api/ai/gamma-poll`
+- Logo finale: istruzione doppia (inputText + additionalInstructions) per sfondo nero + logo centrato 30%
+
+### PreventivoDocument — testo estratto in DB
+- PDF importato → pdf.js estrae testo client-side → salvato in `PreventivoDocument.extractedText` (solo DB, no Blob)
+- Gamma usa il testo estratto come `richContent` (max 25k chars)
+- Al salvataggio PRV (nuovo o esistente): testo automaticamente salvato senza UI separata
+
+### Conversione 4GO → TelegramDocument automatico
+- Alla conversione PRV → 4GO: se `gammaExportUrl` disponibile → scarica PDF Gamma → crea `TelegramDocument` associato al `bookingCode`
+- Bot ha subito il contenuto disponibile
+
+### Bottone "Genera Pacchetto Viaggi" (solo CONVERTED)
+- Route `/api/admin/prv-to-package`
+- Haiku estrae itinerario da testo PDF PRV (omette prezzi/costi/date specifiche)
+- Crea `Package` DRAFT in Pacchetti Viaggi
+
+### Voci extra post-PAID
+- Selezione metodo pagamento per ogni voce: Stripe / PayPal / Entrambi
+- Link Stripe include `extraItemIds` nei metadata → webhook spunta voci automaticamente
+- PayPal → segna pagato manuale operatore
+
+### Cron prv-autoarchive
+- URL: `/api/cron/prv-autoarchive?secret=4go2026`
+- Archivia PRV con `returnDate` > 30 giorni fa e status != CONVERTED
+- Elimina `PreventivoDocument` records (solo DB)
+- Da aggiungere su cron-job.org: `0 9 * * *`
+
+### UX preventivi
+- Barra ricerca sticky in cima alla lista
+- "Rigenera Gamma" bottone viola nel form (solo in modifica)
+- Un solo bottone Gamma viola nella card quando non in modifica
+- "Totale voci" mostrato sotto "Totale preventivo indicativo" nel form
+- La voce "rif. PDF" non entra nel calcolo "Totale voci"
+
+### QR Telegram nelle email
+- Colore rosso `#D10000` su sfondo bianco
+- Punta a `fourgo.it/bot?code=4GO-...` (pagina di atterraggio)
+- Pagina `/bot`: deep link `tg://`, App Store/Play Store, codice in grande
+
+---
+
+*Ultimo aggiornamento: 2026-04-04 sera*
+
+---
+
+## SESSIONE 2026-04-06 — PRV UX, Gamma fix, saldo pagamenti
+
+### Fix UX Preventivi
+- Barra ricerca: spostata in cima alla lista (era in fondo), rimossa duplicata
+- Bottone Gamma card: rimosso grigio duplicato — rimane solo viola
+- In modifica: bottone diventa "Rigenera Gamma" viola
+- Totale voci: mostrato sotto "Totale preventivo indicativo", somma tutti gli items escluso rif.PDF, aggiornato live
+- numCards Gamma PRV: fisso 32
+
+### Gamma PRV — estrazione dati reali
+- Haiku istruito a estrarre dati ESATTI dal testo (orari voli, nomi hotel, stelle, treni) — può migliorare la presentazione ma NON omettere nulla
+- 30 sezioni esplicite nel prompt Haiku per garantire copertura completa
+- textMode: condense→preserve (condense causava perdita dati)
+- Testo PDF estratto client-side (pdf.js) salvato in PreventivoDocument al salvataggio PRV
+
+### Gamma — nome documento
+- Tutte e 3 le route (gamma-brochure PRV, generate-gamma-auto PKG, package multi-hotel) passano `name` a Gamma
+- Formato: `PRV-2026-NNOVG · 06/04 14:32` — codice + data + ora, unico ad ogni rigenerazione
+- Cercabile in Gamma.app
+
+### Pannello POST-PAID — saldo pagamenti
+- Riepilogo: Extra aggiunti / Extra pagati (verde) / Saldo finale da incassare (rosso)
+- Saldo si aggiorna ad ogni azione (aggiungi voce, segna pagato, rimuovi)
+- Bottone ✕ per rimuovere ogni voce extra
+- Bottone "Genera link saldo (€X)" sul totale residuo esatto
+- Formula: Totale pacchetto - Acconto pagato + Extra aggiunti - Extra pagati = Saldo finale
+
+### Gamma folder
+- API Gamma non supporta creazione folder via API — solo lista (GET /folders)
+- Soluzione adottata: nome documento con codice PRV/PKG + data+ora
+
+---
+
+*Ultimo aggiornamento: 2026-04-06*
+
+---
+
+## SESSIONE 2026-04-07 — 4GO-9: fix vari, nearby search Telegram, Nano Banana, aggiornamento automatico Gamma
+
+### Fix impostazioni admin
+- Saldo crediti Gamma: campo dinamico aggiornato da `gamma-poll` dopo ogni generazione (`gammaCreditsRemaining`, `gammaCreditsUpdatedAt` in SiteSettings)
+- Sezione Anthropic: rimosso budget manuale, consumo mensile dinamico con soglie fisse (€8 warning, €13 critical)
+- Sezione Gamma: rimosso budget manuale, notifiche Telegram su crediti reali (<1500 warning, <500 critical)
+- Saldo Gamma editabile manualmente in impostazioni come fallback
+
+### Nano Banana (admin/nanobanana)
+- Nuova pagina `/admin/nanobanana` solo per Inga
+- Generazione immagini AI con Gemini (stesso engine newsletter)
+- Galleria creazioni con download e eliminazione
+- Logo 4GO watermark automatico su ogni immagine (blend:screen, base64 embedded nel codice)
+- Immagini salvate in Blob sotto `4go/nanobanana/`
+
+### Telegram nearby search (posizione GPS)
+- Bot intercetta keyword: ristorante, cena, pranzo, bar, aperitivo, cocktail, cosa vedere, museo, attrazione, discoteca, nightlife, shopping, negozi, souvenir
+- Risponde con pulsante "Condividi posizione" → cliente manda GPS → Google Places Nearby Search (raggio 600m) → 3 risultati con rating, stato aperto/chiuso, link Maps
+- Funziona solo per sessioni ACTIVE (cliente con prenotazione)
+- Regola sistema prompt: bot non risponde a meteo/info su destinazioni fuori itinerario
+- Keyword aggiornate in /help e nei messaggi di benvenuto/interim
+- Variabile: `NEXT_PUBLIC_GOOGLE_MAPS_KEY` (Places API abilitata richiesta)
+
+### Sync docs operatori (4GODocs)
+- Repo pubblico `maxschiliro70-4go/4GODocs` con 4 file .md
+- GitHub Action `sync-docs.yml` su `4-GO` sincronizza automaticamente ad ogni push su `docs/*.md`
+- Token `DOCS_SYNC_TOKEN` come secret GitHub su `4-GO`
+- Progetti Claude.ai Massimo/Alessia/Inga collegati al repo via connettore GitHub
+
+### Progress bar Gamma PRV
+- Polling aumentato a 100 iterazioni (300s)
+- Barra di avanzamento con step e percentuale durante generazione
+- maxDuration 120s sulla route gamma-brochure
+
+### Aggiornamento automatico Gamma al cambio hotel
+- Flusso: cliente sceglie hotel → notifica operatore **originale** (chi ha creato il PKG, non sempre Massimo) via Telegram con bottone inline
+- `PreventivoPackage` ora salva `preventivoId` e `createdBy` (massimo/alessia/inga)
+- Bottone "🎨 Aggiorna brochure Gamma" → rigenera PRV con `hotelOverride` iniettato nel prompt Haiku
+- Se PKG aveva già Gamma generato → rigenera automaticamente anche quello
+- Migration: `preventivoId TEXT`, `createdBy TEXT` su `PreventivoPackage`
+
+### Multi-selezione extra PRV
+- Checkbox su ogni voce extra positiva in PRV CONFIRMED
+- "Seleziona tutti" / "Deseleziona tutti"
+- Selezione 2+ voci → pannello "Genera link unico" con totale aggregato
+- Singolo link Stripe/PayPal per tutte le voci selezionate
+
+### Fix vari
+- Confirm su tutti i cestini (calendario aggiunto)
+- Gamma PRV: rimosso campo `name` non supportato da API v1.0
+- model Haiku corretto: `claude-haiku-4-5-20251001`
+- Limiti testo Gamma PRV: 40k chars input Haiku, maxDuration 120s
+
+---
+
+## SESSIONE 2026-04-07/08 — 4GO-10: fix critici, nuove feature, SEO, prenotazioni manuali
+
+### Fix getServerSession → getToken
+Tutte le route API che usavano `getServerSession()` senza `authOptions` crashavano in produzione con `NO_SECRET`. Sostituite con `getToken()` da `next-auth/jwt` in: packages, activity, email-reply, blog, blog/[id], social-post, send-newsletter, preventivi/package, generate-gamma-auto.
+
+### Fix additionalEmails ManualBooking
+Campo `additionalEmails` (formato `Nome Cognome <email>, ...`) su prenotazioni manuali. Problema: la lista prenotazioni veniva da `/api/admin/bookings` (non `/api/admin/manual-bookings`) — raw query aggiunta al route corretto. Lezione: tracciare sempre il flusso UI→fetch→route prima di modificare.
+
+### Email partecipanti aggiuntivi
+- Email inviata automaticamente a tutti i partecipanti aggiuntivi al cambio stato
+- Bottone "📧 Invia a partecipanti" con checkbox per selezione individuale
+- Bottone "✓ Segna già inviata" per marcare senza inviare (prenotazioni storiche)
+- Campo `emailedParticipants` (JSON array) traccia chi ha già ricevuto → checkbox disabilitato con "✓ già inviata"
+- Flag `_onlyAdditional` e `_selectedEmails` nel PATCH per invio selettivo
+
+### QR email → vercel.app durante COMING_SOON
+`buildQrSignature` usa `4go-gamma.vercel.app` se `COMING_SOON=true`, `fourgo.it` dopo il lancio. Middleware: `/bot` bypass coming soon per QR già inviati ai clienti.
+
+### Fix FK violation Package.createdById
+`createdById` FK verso `User` ma operatori sono in `AdminUser` → impostato sempre `null`.
+
+### Multi-hotel PKG
+- Notifica all'operatore **originale** (createdBy: massimo/alessia/inga) invece di sempre Massimo
+- Scelta pagamento acconto/totale dal cliente su `/scegli-pacchetto` → `paymentChoice` salvato in DB
+- Admin genera **un solo link** (acconto o totale) in base alla scelta del cliente
+- `PkgPaymentBlock` come componente separato (fix crash lista)
+
+### Gamma PRV → ManualBooking
+Alla conversione PRV→4GO: `gammaUrl` e `gammaText` copiati nel ManualBooking. Bot usa `gammaUrl` per mandare brochure e `gammaText` come contesto itinerario per rispondere a domande specifiche.
+
+### Gamma auto-generazione
+- `generate-gamma-auto`: rimosso campo `name` (Gamma API 400)
+- `resultRef` sincronizzato con state per evitare stale closure in `savePackage`
+- Progress bar visibile indipendentemente da `showVisual`
+- Gamma si avvia automaticamente dopo salvataggio bozza da import PDF
+
+### Import pacchetti (parse-document)
+- `availability`: sempre stringa vuota (no date importate)
+- `priceFrom`: prezzo totale, non per persona
+- `passportRequired`: false se CI sufficiente (Albania, EU)
+- `ecoData` completo: co2KgPerPerson, ecoRating, localEconomy, flightHours
+- `visual` completo: primaryColor, secondaryColor, fontHeading, mood, coverTagline
+- No email tour operator nel testo estratto
+
+### Palette e font per destinazione (generate-gamma-auto)
+Stile visivo specifico per: Africa/Safari, Giappone, Vietnam/Asia, Maldive/Caraibi, Italia/Grecia, Giordania/Marocco, Norvegia/Islanda, Albania, Spagna, USA/Florida, Portogallo, America Latina, Francia, Austria/Vienna, Praga/Boemia, Budapest/Balkani, Polonia, Olanda, Germania, Svizzera, UK, Scandinavia, Russia, Turchia, Egitto, India, Cina, Corea, Australia, Canada, Messico.
+
+### SEO pacchetti
+- Schema JSON-LD: `@type: ['Product', 'TouristTrip']` + itinerary + ecoData CO2 + touristType
+- Blog autogen linka al pacchetto correlato con slug reale
+- Pagina pacchetto mostra sezione "📖 Leggi anche" con blog correlati per destinazione
+
+### Pacchetti admin
+- Filtro città nel dropdown lista pacchetti
+- Badge Gamma cliccabile per pacchetti con gammaUrl
+- Bottone "Crea PRV" da pacchetto (icona FileText)
+- Link "Visualizza" punta a vercel.app (fourgo.it in coming soon)
+- Tipo viaggio: aggiunti "città" e "avventura" in AI generator, modifica pacchetto, filtro pubblico
+
+### Migration ecoData.localEconomy
+Backfill automatico di `localEconomy` su tutti i pacchetti esistenti in base a countryCode/destination. Albania/EU ~60-65%, USA/Canada ~30%, Asia ~50%, Dubai ~25%.
+
+### Fix vari
+- `NEXTAUTH_URL` → `fourgo.it` su Vercel ✅
+- URL fallback in code da vercel.app → fourgo.it (eccetto logo Gamma — da fare post-lancio)
+- Email firme: logo da vercel.app → fourgo.it
+- Statistiche: `ActivityLog` table creation in migration + `getToken` fix
+- Città tripType: match `citta↔città` in PacchettiClient
+- PKG lista multi-hotel: crash risolto con `PkgPaymentBlock` separato
+
+---
+
+## SESSIONE 2026-04-08 — 4GO-11: operazioni background, mappe, blog, Social AI
+
+### Pannello operazioni globale (background)
+- `OperationsContext` + `OperationsPanel` fisso in basso a destra
+- Gamma/import PDF/mappe continuano anche navigando tra le pagine admin
+- Auto-save bozza PRIMA di avviare Gamma (fix stale closure con `savedIdRef`)
+- `PATCH /api/admin/packages/[id]` per aggiornamenti parziali (gammaUrl, status, ecc.)
+- Al completamento Gamma: link "📦 Apri in lista pacchetti →"
+
+### Streaming SSE parse-document
+- `parse-document` risponde con SSE stream: 15% → 45% → 85% → 100%
+- Progress bar in tempo reale durante import PDF pacchetti
+- `readSSEStream()` helper nel client
+
+### Tipi viaggio allineati
+- Costante `TRIP_TYPES` in `src/lib/tripTypes.ts` (15 tipi: individuale, gruppo, partner, fly&drive, nozze, crociera, città, cultura, enogastronomia, divertimento, lusso, natura, benessere, adrenalina, studio)
+- Sincronizzata tra FilterBar pubblica e tutti i dropdown admin
+
+### Import pacchetti — nuove feature
+- Notifica Telegram a tutti gli operatori al salvataggio di un nuovo pacchetto
+- `createdByName` (String?) su Package — tag autore nella lista pacchetti
+- `packageCode` nel PRV creato da pacchetto (badge amber 📦)
+- `gammaText` (Text?) su Package — estratto dalla brochure Gamma per il bot Telegram
+- Bot Telegram: fallback `Package.gammaText` se `ManualBooking` non ha gammaText
+- Geocoding con `countryCode` come filtro Google Maps (evita match errati es. Cipro→Tanzania)
+
+### ItineraryMap — fix definitivi
+- `ItineraryMap` include sia `type:'city'` che `type:'attraction'` come marker numerati
+- Skip localStorage se `geoData` dal DB è disponibile (no più cache stantia)
+- Cache key include lunghezza geoData → si invalida automaticamente se DB cambia
+- `geocodedStops` state esposto per link Google Maps
+- Google Maps link usa `lat,lng` coordinate reali (non nomi città) + dedup
+- Chip filtro città visibile anche con una sola città (city break)
+
+### Restore geoData
+- Endpoint `/api/admin/restore-geodata`: estrae attrazioni dall'itinerario via Haiku + geocodifica
+- Bottone "📍 Ripristina attrazioni" in `/admin/sistema`
+- Salta automaticamente pacchetti con attrazioni già presenti (filter `type:'attraction'`)
+- Limit 20 pacchetti per run
+
+### Blog — dedup e foto
+- `packageSlug` + `articleType` su modello `Post` come chiave univoca di deduplica
+- `blog-autogen` controlla combo `packageSlug|articleType` prima di generare
+- Query immagini: `"${location} city"` invece di `"travel landscape"` (risultati più precisi)
+- Bottone "🧹 Pulisci blog" in `/admin/sistema` (dedup + fix foto da pacchetto corrispondente)
+- `destinationImages.ts` aggiornato con tutte le città europee principali
+
+### Social AI — documenti
+- Documenti raggruppati per prenotazione con accordion (chiusi di default)
+- Sezione "🤖 Utenti che hanno avviato il bot" visibile solo SUPERADMIN
+- Dropdown pacchetti mostra tutti i pacchetti (rimosso filtro `booked=1`)
+
+### Sezione Sistema — Manutenzione Contenuti
+- "🖼️ Avvia verifica" — controlla immagini rotte
+- "🗺️ Ricalcola mappe" — rigenera geoData da mapCities
+- "📍 Ripristina attrazioni" — rigenera attrazioni da itinerario via AI
+- "🧹 Pulisci blog" — dedup post e fix foto
+
+### Performance
+- `/preventivo-confermato` convertita da client-side a SSR
+- `/login` logo con `priority` e dimensioni ottimizzate
+- Hero carousel parte da indice random, carousel2 da indice 2
+
+### Migration (4go2026) — nuovi campi
+```sql
+ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "createdByName" TEXT;
+ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "gammaText" TEXT;
+ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "packageSlug" TEXT;
+ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "articleType" TEXT;
+ALTER TABLE "Preventivo" ADD COLUMN IF NOT EXISTS "packageCode" TEXT;
+```
+
+### Lezioni apprese
+- **Non toccare ItineraryMap/geoData senza leggere le sessioni precedenti** — il geoData include type:'city', type:'attraction', type:'optional' e tutti devono essere mostrati
+- **Regeocode sovrascrive le attrazioni** — usare solo per pacchetti con geoData assente/sbagliato
+- **savedIdRef** invece di `savedId` in closures async per evitare stale state
+- **PATCH vs PUT** — verificare sempre quale metodo HTTP espone la route
+
+---
+
+## SESSIONE 2026-04-08 pomeriggio — fix mappe, Social AI, email, blog
+
+### Google Maps link
+- `ItineraryMap`: link "Apri in Google Maps" usa `lat,lng` reali da `geocodedStops` (non nomi città)
+- Deduplicazione coordinate identiche prima di costruire il link
+- Il link mostra il percorso completo con tutte le attrazioni del viaggio
+
+### Import PDF → geoData con attrazioni
+- Il geoData viene salvato correttamente con `type:'city'` e `type:'attraction'` durante l'import
+- Skip localStorage se `geoData` DB disponibile → niente cache stantia dopo import
+- Cache key include `_${geoData.length}` → invalidazione automatica se DB cambia
+- Bottone "📍 Ripristina attrazioni" in Sistema: salta pacchetti con `type:'attraction'` già presenti
+
+### Email prenotazione — QR Telegram
+- Font grandi, colori compatibili tema chiaro
+- Testo "👆 copia questo codice, poi apri Telegram" sotto il codice prenotazione
+- Testo non in corsivo
+- Bottone Apri assistente: 15px, padding 12px 22px, rosso 4GO
+- Nota finale non in corsivo: "L'assistente virtuale ti accompagnerà durante il viaggio..."
+
+### Social AI — nuove feature
+- Documenti raggruppati per prenotazione con accordion (chiusi di default, clicca per aprire)
+- Sezione "🤖 Utenti che hanno avviato il bot" — solo SUPERADMIN, in fondo alla tab Telegram
+  - Mostra nome, codice prenotazione, stato sessione, data
+  - Sessioni con `state !== 'WAITING_CODE'` (chi ha effettivamente avviato il bot)
+- Pacchetti associabili a documenti: tutti i pacchetti (non solo quelli con prenotazioni)
+
+### Blog — foto e dedup
+- Foto blog: se destinazione non in `destinationImages.ts` → query Pexels con `"${location} city"`
+- `destinationImages.ts` arricchito: Berlin, Vienna, Paris, Brussels, Tallinn, Tirana, Cipro, Helsinki, Copenhagen, Sofia, Florida, Chicago
+- Bottone "🧹 Pulisci blog" elimina duplicati per destinazione (mantiene più recente)
+- Foto copiate automaticamente dal pacchetto corrispondente
+
+### Performance
+- Carousel homepage: hero da indice random, carousel2 da indice 2
+- Hero ridotto da 80/85vh a 65/72vh per vedere il contenuto subito sotto
+- `/preventivo-confermato`: SSR invece di client-side fetch (score Speed Insights 22→89 desktop)
+
+*Ultimo aggiornamento: 2026-04-08*
